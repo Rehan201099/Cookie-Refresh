@@ -3,53 +3,42 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Roblox Pro Cookie Checker - Economy</title>
+    <title>Roblox Account Inspector</title>
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="bg-slate-900 text-slate-100 min-h-screen p-4 md:p-8">
-    <div class="max-w-4xl mx-auto">
+    <div class="max-w-3xl mx-auto">
         <header class="text-center mb-8">
-            <h1 class="text-3xl font-extrabold text-indigo-400 mb-2">Roblox Pro Cookie Checker</h1>
-            <p class="text-slate-400">Cek akun lengkap dengan info Robux Masuk/Keluar & Riwayat Pengeluaran.</p>
+            <h1 class="text-3xl font-extrabold text-indigo-400 mb-2">Roblox Account Inspector</h1>
+            <p class="text-slate-400">Cek info detail akun: Mail, 2FA, Age, Premium, hingga Robux In/Out.</p>
         </header>
 
-        <!-- Input Area -->
         <div class="bg-slate-800 p-6 rounded-xl shadow-lg border border-slate-700 mb-6">
-            <label class="block text-sm font-medium mb-2 text-slate-300">Masukkan Cookie (.ROBLOSECURITY):</label>
-            <textarea id="cookieInput" rows="5" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 text-sm text-slate-200 focus:outline-none focus:border-indigo-500 font-mono" placeholder="_|WARNING:-DO-NOT-SHARE-THIS..."></textarea>
+            <label class="block text-sm font-medium mb-2 text-slate-300">Masukkan 1 Cookie (.ROBLOSECURITY):</label>
+            <textarea id="cookieInput" rows="3" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 text-sm text-slate-200 focus:outline-none focus:border-indigo-500 font-mono" placeholder="_|WARNING:-DO-NOT-SHARE-THIS..."></textarea>
             
-            <div class="mt-4 flex flex-wrap gap-4 items-center justify-between">
-                <button onclick="startChecking()" id="checkBtn" class="bg-indigo-600 hover:bg-indigo-500 text-white font-semibold px-6 py-2.5 rounded-lg transition duration-200 shadow-md">
-                    Mulai Cek Akun
+            <div class="mt-4 flex items-center justify-between">
+                <button onclick="startChecking()" id="checkBtn" class="bg-indigo-600 hover:bg-indigo-500 text-white font-semibold px-6 py-2.5 rounded-lg transition shadow-md">
+                    Cek Akun Sekarang
                 </button>
                 <div class="text-sm" id="statusText"></div>
             </div>
         </div>
 
-        <!-- Filter & Search Bar -->
-        <div class="mb-4 flex flex-col md:flex-row gap-4 justify-between items-center">
-            <input type="text" id="searchInput" onkeyup="filterResults()" placeholder="Cari username..." class="w-full md:w-1/3 bg-slate-800 border border-slate-700 rounded-lg px-4 py-2 text-sm text-slate-200 focus:outline-none focus:border-indigo-500">
-            <div class="text-sm text-slate-400" id="totalValid">Total Valid: 0</div>
-        </div>
-
-        <!-- Results Section -->
-        <div class="bg-slate-800 rounded-xl shadow-lg border border-slate-700 overflow-hidden">
-            <div class="p-4 border-b border-slate-700 font-semibold text-slate-300">Hasil Pengecekan Ekonomi Akun</div>
-            <div id="resultsContainer" class="divide-y divide-slate-700 max-h-[600px] overflow-y-auto p-4 space-y-4">
-                <p class="text-slate-500 text-center py-4">Belum ada data yang dicek.</p>
+        <div id="resultsContainer" class="space-y-4">
+            <div class="bg-slate-800 p-6 rounded-xl border border-slate-700 text-center text-slate-500">
+                Belum ada akun yang diperiksa.
             </div>
         </div>
     </div>
 
     <script>
-        let allResults = [];
-
         async function startChecking() {
             const input = document.getElementById('cookieInput').value;
             const cookies = input.split('\n').map(c => c.trim()).filter(c => c.length > 0);
             
             if (cookies.length === 0) {
-                alert('Masukkan setidaknya satu cookie!');
+                alert('Masukkan cookie terlebih dahulu!');
                 return;
             }
 
@@ -58,7 +47,7 @@
             btn.disabled = true;
             btn.classList.add('opacity-50');
             statusText.className = "text-sm text-amber-400";
-            statusText.innerText = `Memeriksa ${cookies.length} akun...`;
+            statusText.innerText = "Memeriksa akun...";
 
             try {
                 const response = await fetch('/api/check', {
@@ -68,13 +57,11 @@
                 });
 
                 const data = await response.json();
-                if (!response.ok) throw new Error(data.error || 'Gagal tersambung ke server');
+                if (!response.ok) throw new Error(data.error || 'Terjadi kesalahan');
 
-                allResults = data.results || [];
-                renderResults(allResults);
-
+                renderResult(data.results || []);
                 statusText.className = "text-sm text-emerald-400 font-semibold";
-                statusText.innerText = `Selesai! Ditemukan ${allResults.length} akun valid.`;
+                statusText.innerText = "Pemeriksaan selesai!";
             } catch (err) {
                 statusText.className = "text-sm text-rose-400 font-semibold";
                 statusText.innerText = `Error: ${err.message}`;
@@ -84,77 +71,74 @@
             }
         }
 
-        function renderResults(data) {
+        function renderResult(results) {
             const container = document.getElementById('resultsContainer');
-            document.getElementById('totalValid').innerText = `Total Valid: ${data.length}`;
-            
-            if (data.length === 0) {
-                container.innerHTML = `<p class="text-slate-500 text-center py-4">Tidak ada akun valid yang ditemukan.</p>`;
+            if (results.length === 0) {
+                container.innerHTML = `<div class="bg-slate-800 p-6 rounded-xl border border-slate-700 text-center text-rose-400">Cookie tidak valid atau sudah expired!</div>`;
                 return;
             }
 
-            container.innerHTML = data.map(acc => {
-                let txHtml = acc.transactions && acc.transactions.length > 0 ? acc.transactions.map(tx => `
-                    <div class="flex justify-between items-center bg-slate-800 p-2 rounded text-xs border border-slate-700">
-                        <span class="text-slate-300 truncate max-w-[180px]">${tx.description}</span>
-                        <span class="${tx.amount > 0 ? 'text-emerald-400 font-semibold' : 'text-rose-400 font-semibold'}">
-                            ${tx.amount > 0 ? '+' + tx.amount : tx.amount} Robux
-                        </span>
-                    </div>
-                `).join('') : '<span class="text-xs text-slate-500">Tidak ada riwayat transaksi terbaru.</span>';
+            const acc = results[0];
+            let txHtml = acc.transactions && acc.transactions.length > 0 ? acc.transactions.map(tx => `
+                <div class="flex justify-between items-center bg-slate-900 p-2 rounded text-xs border border-slate-700">
+                    <span class="text-slate-300 truncate max-w-[200px]">${tx.description}</span>
+                    <span class="${tx.amount > 0 ? 'text-emerald-400 font-semibold' : 'text-rose-400 font-semibold'}">
+                        ${tx.amount > 0 ? '+' + tx.amount : tx.amount} Robux
+                    </span>
+                </div>
+            `).join('') : '<span class="text-xs text-slate-500">Tidak ada riwayat transaksi.</span>';
 
-                return `
-                <div class="bg-slate-900 p-4 rounded-lg border border-slate-700 space-y-4">
-                    <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-                        <div class="flex items-center gap-4">
-                            <div class="relative w-16 h-16 flex-shrink-0 bg-slate-800 rounded-full overflow-hidden border-2 border-indigo-500">
-                                <img src="https://tr.rbxcdn.com/30df39a38f38d38a8e10c73229b110bc/150/150/AvatarHeadshot/Png" 
-                                     onload="fetchAvatar(this, ${acc.userId})" alt="Avatar" class="w-full h-full object-cover">
-                            </div>
-                            <div>
-                                <div class="flex items-center gap-2 flex-wrap">
-                                    <span class="font-bold text-indigo-400 text-lg">${acc.username}</span>
-                                    <span class="text-xs bg-slate-800 px-2 py-0.5 rounded text-slate-300">ID: ${acc.userId}</span>
-                                    ${acc.isPremium ? '<span class="text-xs bg-amber-500/20 text-amber-400 border border-amber-500/30 px-2 py-0.5 rounded font-semibold">Premium</span>' : ''}
-                                </div>
-                                <div class="text-sm text-slate-400 mt-1 flex flex-wrap gap-4">
-                                    <span>💰 Saldo: <strong class="text-emerald-400">${acc.robux}</strong></span>
-                                    <span>📥 Masuk: <strong class="text-sky-400">+${acc.totalIncoming}</strong></span>
-                                    <span>📤 Keluar (Spend): <strong class="text-rose-400">-${acc.totalSpent}</strong></span>
-                                    <span>📅 Dibuat: ${acc.createdDate}</span>
-                                </div>
-                            </div>
+            container.innerHTML = `
+                <div class="bg-slate-800 p-6 rounded-xl border border-slate-700 space-y-4 shadow-lg">
+                    <div class="flex justify-between items-center">
+                        <div>
+                            <h2 class="text-xl font-bold text-indigo-400">${acc.username} <span class="text-sm font-normal text-slate-400">(${acc.displayName})</span></h2>
+                            <p class="text-xs text-slate-500">ID: ${acc.userId}</p>
                         </div>
-                        <button onclick="navigator.clipboard.writeText('${acc.cookie}'); alert('Cookie berhasil disalin!');" class="w-full md:w-auto bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs px-4 py-2 rounded border border-slate-600 transition text-center">
-                            Salin Cookie
-                        </button>
+                        ${acc.isPremium ? '<span class="bg-amber-500/20 text-amber-400 border border-amber-500/30 px-3 py-1 rounded-full text-xs font-semibold">Premium User</span>' : ''}
                     </div>
 
-                    <!-- Riwayat Transaksi / Pembelian Game & Item -->
-                    <div class="pt-3 border-t border-slate-800">
-                        <div class="text-xs font-semibold text-slate-400 mb-2">📜 Riwayat Transaksi Robux Terakhir (In/Out/Spend):</div>
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-2 max-h-36 overflow-y-auto">${txHtml}</div>
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+                        <div class="bg-slate-900 p-3 rounded-lg border border-slate-700">
+                            <div class="text-xs text-slate-400">Saldo Robux</div>
+                            <div class="text-emerald-400 font-bold text-lg">${acc.robux}</div>
+                        </div>
+                        <div class="bg-slate-900 p-3 rounded-lg border border-slate-700">
+                            <div class="text-xs text-slate-400">Robux Masuk</div>
+                            <div class="text-sky-400 font-bold text-lg">+${acc.totalIncoming}</div>
+                        </div>
+                        <div class="bg-slate-900 p-3 rounded-lg border border-slate-700">
+                            <div class="text-xs text-slate-400">Robux Keluar</div>
+                            <div class="text-rose-400 font-bold text-lg">-${acc.totalSpent}</div>
+                        </div>
+                        <div class="bg-slate-900 p-3 rounded-lg border border-slate-700">
+                            <div class="text-xs text-slate-400">Umur Akun</div>
+                            <div class="text-slate-200 font-semibold text-xs mt-1">${acc.createdDate}</div>
+                        </div>
                     </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+                        <div class="bg-slate-900 p-3 rounded-lg border border-slate-700 flex justify-between items-center">
+                            <span class="text-slate-400">Status Email:</span>
+                            <span class="font-semibold text-slate-200 text-xs">${acc.emailStatus}</span>
+                        </div>
+                        <div class="bg-slate-900 p-3 rounded-lg border border-slate-700 flex justify-between items-center">
+                            <span class="text-slate-400">Keamanan 2FA:</span>
+                            <span class="font-semibold text-slate-200 text-xs">${acc.has2FA}</span>
+                        </div>
+                    </div>
+
+                    <div>
+                        <div class="text-xs font-semibold text-slate-400 mb-2">📜 Riwayat Transaksi Terakhir (In/Out):</div>
+                        <div class="space-y-2 max-h-40 overflow-y-auto">${txHtml}</div>
+                    </div>
+
+                    <button onclick="navigator.clipboard.writeText('${acc.cookie}'); alert('Cookie berhasil disalin!');" class="w-full bg-slate-700 hover:bg-slate-600 text-slate-200 text-xs py-2 rounded-lg transition font-semibold">
+                        Salin Cookie Akun Ini
+                    </button>
                 </div>
             `;
-            }).join('');
-        }
-
-        async function fetchAvatar(imgElement, userId) {
-            try {
-                const res = await fetch(`https://thumbnails.roblox.com/v1/users/avatar-headshot?userIds=${userId}&size=150x150&format=Png&isCircular=true`);
-                const data = await res.json();
-                if (data.data && data.data[0] && data.data[0].imageUrl) {
-                    imgElement.src = data.data[0].imageUrl;
-                }
-            } catch (e) {}
-        }
-
-        function filterResults() {
-            const keyword = document.getElementById('searchInput').value.toLowerCase();
-            const filtered = allResults.filter(acc => acc.username.toLowerCase().includes(keyword));
-            renderResults(filtered);
         }
     </script>
 </body>
-</html>l>
+</html>
