@@ -4,46 +4,46 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Roblox Account Inspector</title>
-    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
 </head>
-<body class="bg-slate-900 text-slate-100 min-h-screen p-4 md:p-8">
-    <div class="max-w-3xl mx-auto">
-        <header class="text-center mb-8">
-            <h1 class="text-3xl font-extrabold text-indigo-400 mb-2">Roblox Account Inspector</h1>
-            <p class="text-slate-400">Cek info detail akun: Mail, 2FA, Age, Premium, hingga Robux In/Out.</p>
-        </header>
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col items-center p-4">
 
-        <div class="bg-slate-800 p-6 rounded-xl shadow-lg border border-slate-700 mb-6">
-            <label class="block text-sm font-medium mb-2 text-slate-300">Masukkan 1 Cookie (.ROBLOSECURITY):</label>
-            <textarea id="cookieInput" rows="3" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 text-sm text-slate-200 focus:outline-none focus:border-indigo-500 font-mono" placeholder="_|WARNING:-DO-NOT-SHARE-THIS..."></textarea>
-            
-            <div class="mt-4 flex items-center justify-between">
-                <button onclick="startChecking()" id="checkBtn" class="bg-indigo-600 hover:bg-indigo-500 text-white font-semibold px-6 py-2.5 rounded-lg transition shadow-md">
-                    Cek Akun Sekarang
-                </button>
-                <div class="text-sm" id="statusText"></div>
-            </div>
+    <div class="w-full max-w-md bg-slate-900 border border-slate-800 rounded-xl p-6 shadow-xl mt-6">
+        <h1 class="text-2xl font-bold text-indigo-400 mb-2">Roblox Account Inspector</h1>
+        <p class="text-sm text-slate-400 mb-4">Cek info detail akun: Mail, 2FA, Age, Premium, hingga Robux In/Out.</p>
+
+        <div class="mb-4">
+            <label class="block text-sm font-medium mb-2">Masukkan 1 Cookie (.ROBLOSECURITY):</label>
+            <textarea id="cookieInput" rows="4" class="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-xs text-slate-200 focus:outline-none focus:border-indigo-500" placeholder="Paste cookie disini..."></textarea>
         </div>
 
-        <div id="resultsContainer" class="space-y-4">
-            <div class="bg-slate-800 p-6 rounded-xl border border-slate-700 text-center text-slate-500">
-                Belum ada akun yang diperiksa.
-            </div>
+        <button id="checkBtn" onclick="checkAccount()" class="w-full bg-indigo-600 hover:bg-indigo-500 font-semibold py-3 rounded-lg transition duration-200 shadow-md">
+            Cek Akun Sekarang
+        </button>
+
+        <div id="statusText" class="mt-3 text-sm text-center text-slate-400"></div>
+    </div>
+
+    <div id="resultContainer" class="w-full max-w-md mt-6 space-y-4">
+        <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 text-center text-slate-500 text-sm">
+            Belum ada akun yang diperiksa.
         </div>
     </div>
 
     <script>
-        async function startChecking() {
-            const input = document.getElementById('cookieInput').value;
-            const cookies = input.split('\n').map(c => c.trim()).filter(c => c.length > 0);
-            
-            if (cookies.length === 0) {
-                alert('Masukkan cookie terlebih dahulu!');
+        async function checkAccount() {
+            const cookieInput = document.getElementById('cookieInput');
+            const btn = document.getElementById('checkBtn');
+            const statusText = document.getElementById('statusText');
+            const resultContainer = document.getElementById('resultContainer');
+
+            const cookie = cookieInput.value.trim();
+            if (!cookie) {
+                statusText.className = "text-sm text-rose-400 font-semibold";
+                statusText.innerText = "Error: Cookie tidak boleh kosong!";
                 return;
             }
 
-            const btn = document.getElementById('checkBtn');
-            const statusText = document.getElementById('statusText');
             btn.disabled = true;
             btn.classList.add('opacity-50');
             statusText.className = "text-sm text-amber-400";
@@ -53,7 +53,7 @@
                 const response = await fetch('/api/check', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ cookies })
+                    body: JSON.stringify({ cookie }) 
                 });
 
                 const data = await response.json();
@@ -72,72 +72,23 @@
         }
 
         function renderResult(results) {
-            const container = document.getElementById('resultsContainer');
-            if (results.length === 0) {
-                container.innerHTML = `<div class="bg-slate-800 p-6 rounded-xl border border-slate-700 text-center text-rose-400">Cookie tidak valid atau sudah expired!</div>`;
-                return;
-            }
+            const container = document.getElementById('resultContainer');
+            if (!results.length) return;
 
-            const acc = results[0];
-            let txHtml = acc.transactions && acc.transactions.length > 0 ? acc.transactions.map(tx => `
-                <div class="flex justify-between items-center bg-slate-900 p-2 rounded text-xs border border-slate-700">
-                    <span class="text-slate-300 truncate max-w-[200px]">${tx.description}</span>
-                    <span class="${tx.amount > 0 ? 'text-emerald-400 font-semibold' : 'text-rose-400 font-semibold'}">
-                        ${tx.amount > 0 ? '+' + tx.amount : tx.amount} Robux
-                    </span>
+            container.innerHTML = results.map(acc => `
+                <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-lg space-y-3 text-sm">
+                    <div class="flex justify-between items-center border-b border-slate-800 pb-2">
+                        <span class="font-bold text-indigo-300">${acc.displayName}</span>
+                        <span class="text-xs text-slate-400">@${acc.username}</span>
+                    </div>
+                    <div class="grid grid-cols-2 gap-2 text-slate-300">
+                        <div>💰 Robux: <b class="text-emerald-400">${acc.robux}</b></div>
+                        <div>🛡️ 2FA: <span class="${acc.has2FA.includes('Aktif') ? 'text-emerald-400' : 'text-rose-400'}">${acc.has2FA}</span></div>
+                        <div>📧 Email: <span class="text-slate-200">${acc.emailStatus}</span></div>
+                        <div>🆔 ID: <span class="text-slate-400">${acc.userId}</span></div>
+                    </div>
                 </div>
-            `).join('') : '<span class="text-xs text-slate-500">Tidak ada riwayat transaksi.</span>';
-
-            container.innerHTML = `
-                <div class="bg-slate-800 p-6 rounded-xl border border-slate-700 space-y-4 shadow-lg">
-                    <div class="flex justify-between items-center">
-                        <div>
-                            <h2 class="text-xl font-bold text-indigo-400">${acc.username} <span class="text-sm font-normal text-slate-400">(${acc.displayName})</span></h2>
-                            <p class="text-xs text-slate-500">ID: ${acc.userId}</p>
-                        </div>
-                        ${acc.isPremium ? '<span class="bg-amber-500/20 text-amber-400 border border-amber-500/30 px-3 py-1 rounded-full text-xs font-semibold">Premium User</span>' : ''}
-                    </div>
-
-                    <div class="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
-                        <div class="bg-slate-900 p-3 rounded-lg border border-slate-700">
-                            <div class="text-xs text-slate-400">Saldo Robux</div>
-                            <div class="text-emerald-400 font-bold text-lg">${acc.robux}</div>
-                        </div>
-                        <div class="bg-slate-900 p-3 rounded-lg border border-slate-700">
-                            <div class="text-xs text-slate-400">Robux Masuk</div>
-                            <div class="text-sky-400 font-bold text-lg">+${acc.totalIncoming}</div>
-                        </div>
-                        <div class="bg-slate-900 p-3 rounded-lg border border-slate-700">
-                            <div class="text-xs text-slate-400">Robux Keluar</div>
-                            <div class="text-rose-400 font-bold text-lg">-${acc.totalSpent}</div>
-                        </div>
-                        <div class="bg-slate-900 p-3 rounded-lg border border-slate-700">
-                            <div class="text-xs text-slate-400">Umur Akun</div>
-                            <div class="text-slate-200 font-semibold text-xs mt-1">${acc.createdDate}</div>
-                        </div>
-                    </div>
-
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
-                        <div class="bg-slate-900 p-3 rounded-lg border border-slate-700 flex justify-between items-center">
-                            <span class="text-slate-400">Status Email:</span>
-                            <span class="font-semibold text-slate-200 text-xs">${acc.emailStatus}</span>
-                        </div>
-                        <div class="bg-slate-900 p-3 rounded-lg border border-slate-700 flex justify-between items-center">
-                            <span class="text-slate-400">Keamanan 2FA:</span>
-                            <span class="font-semibold text-slate-200 text-xs">${acc.has2FA}</span>
-                        </div>
-                    </div>
-
-                    <div>
-                        <div class="text-xs font-semibold text-slate-400 mb-2">📜 Riwayat Transaksi Terakhir (In/Out):</div>
-                        <div class="space-y-2 max-h-40 overflow-y-auto">${txHtml}</div>
-                    </div>
-
-                    <button onclick="navigator.clipboard.writeText('${acc.cookie}'); alert('Cookie berhasil disalin!');" class="w-full bg-slate-700 hover:bg-slate-600 text-slate-200 text-xs py-2 rounded-lg transition font-semibold">
-                        Salin Cookie Akun Ini
-                    </button>
-                </div>
-            `;
+            `).join('');
         }
     </script>
 </body>
