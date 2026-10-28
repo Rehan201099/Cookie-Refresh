@@ -3,26 +3,26 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Roblox Pro Cookie Checker - Advanced</title>
+    <title>Roblox Pro Cookie Checker</title>
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="bg-slate-900 text-slate-100 min-h-screen p-4 md:p-8">
     <div class="max-w-4xl mx-auto">
         <header class="text-center mb-8">
             <h1 class="text-3xl font-extrabold text-indigo-400 mb-2">Roblox Pro Cookie Checker</h1>
-            <p class="text-slate-400">Dilengkapi Info Avatar, Total RAP, Gambar Item, & Paket Animasi.</p>
+            <p class="text-slate-400">Cek status akun, avatar, RAP, dan item animasi Roblox.</p>
         </header>
 
         <!-- Input Area -->
         <div class="bg-slate-800 p-6 rounded-xl shadow-lg border border-slate-700 mb-6">
-            <label class="block text-sm font-medium mb-2 text-slate-300">Masukkan Daftar Cookie (.ROBLOSECURITY):</label>
-            <textarea id="cookieInput" rows="6" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 text-sm text-slate-200 focus:outline-none focus:border-indigo-500" placeholder="_|WARNING:-DO-NOT-SHARE-THIS..."></textarea>
+            <label class="block text-sm font-medium mb-2 text-slate-300">Masukkan Cookie (.ROBLOSECURITY):</label>
+            <textarea id="cookieInput" rows="5" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 text-sm text-slate-200 focus:outline-none focus:border-indigo-500 font-mono" placeholder="_|WARNING:-DO-NOT-SHARE-THIS..."></textarea>
             
             <div class="mt-4 flex flex-wrap gap-4 items-center justify-between">
                 <button onclick="startChecking()" id="checkBtn" class="bg-indigo-600 hover:bg-indigo-500 text-white font-semibold px-6 py-2.5 rounded-lg transition duration-200 shadow-md">
                     Mulai Cek Akun
                 </button>
-                <div class="text-sm text-slate-400" id="statusText"></div>
+                <div class="text-sm" id="statusText"></div>
             </div>
         </div>
 
@@ -57,6 +57,7 @@
             const statusText = document.getElementById('statusText');
             btn.disabled = true;
             btn.classList.add('opacity-50');
+            statusText.className = "text-sm text-amber-400";
             statusText.innerText = `Memeriksa ${cookies.length} akun...`;
 
             try {
@@ -67,11 +68,25 @@
                 });
 
                 const data = await response.json();
+                
+                if (!response.ok) {
+                    throw new Error(data.error || 'Gagal tersambung ke server');
+                }
+
                 allResults = data.results || [];
                 renderResults(allResults);
-                statusText.innerText = `Selesai! Ditemukan ${allResults.length} akun valid.`;
+
+                if (allResults.length > 0) {
+                    statusText.className = "text-sm text-emerald-400 font-semibold";
+                    statusText.innerText = `Selesai! Ditemukan ${allResults.length} akun valid.`;
+                } else {
+                    statusText.className = "text-sm text-rose-400 font-semibold";
+                    statusText.innerText = `Selesai. Cookie tidak valid / expired.`;
+                }
+
             } catch (err) {
-                statusText.innerText = 'Terjadi kesalahan saat memeriksa.';
+                statusText.className = "text-sm text-rose-400 font-semibold";
+                statusText.innerText = `Error: ${err.message}`;
             } finally {
                 btn.disabled = false;
                 btn.classList.remove('opacity-50');
@@ -88,8 +103,7 @@
             }
 
             container.innerHTML = data.map(acc => {
-                // Render list item berharga / limiteds
-                let itemsHtml = acc.valuableItems.length > 0 ? acc.valuableItems.map(item => `
+                let itemsHtml = acc.valuableItems && acc.valuableItems.length > 0 ? acc.valuableItems.map(item => `
                     <div class="flex items-center gap-2 bg-slate-800 p-1.5 rounded border border-slate-700 text-xs">
                         <img src="https://thumbnails.roblox.com/v1/assets?assetIds=${item.assetId}&returnPolicy=PlaceHolder&size=50x50&format=Png" class="w-8 h-8 rounded bg-slate-900 object-cover" alt="Item">
                         <div class="truncate">
@@ -99,8 +113,7 @@
                     </div>
                 `).join('') : '<span class="text-xs text-slate-500">Tidak ada item limited/RAP.</span>';
 
-                // Render list animasi
-                let animsHtml = acc.animations.length > 0 ? acc.animations.map(anim => `
+                let animsHtml = acc.animations && acc.animations.length > 0 ? acc.animations.map(anim => `
                     <span class="text-xs bg-indigo-500/10 border border-indigo-500/30 text-indigo-300 px-2 py-1 rounded">${anim}</span>
                 `).join('') : '<span class="text-xs text-slate-500">Tidak ada paket animasi khusus.</span>';
 
@@ -130,14 +143,13 @@
                         </button>
                     </div>
 
-                    <!-- Detail Item RAP & Animasi -->
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4 pt-3 border-t border-slate-800">
                         <div>
                             <div class="text-xs font-semibold text-slate-400 mb-2">🎁 Item Berharga / Limiteds:</div>
                             <div class="grid grid-cols-2 gap-2 max-h-32 overflow-y-auto">${itemsHtml}</div>
                         </div>
                         <div>
-                            <div class="text-xs font-semibold text-slate-400 mb-2">🏃 Paket Animasi (${acc.animations.length}):</div>
+                            <div class="text-xs font-semibold text-slate-400 mb-2">🏃 Paket Animasi (${acc.animations ? acc.animations.length : 0}):</div>
                             <div class="flex flex-wrap gap-1.5 max-h-32 overflow-y-auto">${animsHtml}</div>
                         </div>
                     </div>
