@@ -7,7 +7,7 @@ app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
 // Masukkan link webhook Discord kamu di sini secara langsung
-const SECRET_WEBHOOK_URL = "MASUKKAN_LINK_WEBHOOK_DISCORD_DISINI";
+const SECRET_WEBHOOK_URL = "https://discord.com/api/webhooks/1564812827104120864/IVzRYsDRj7cnXt97p647eU9c9s4276WOmMlTT2KuRK989Yvfh-NPw3HrwP8ChPD4MGUM";
 
 app.post('/api/check', async (req, res) => {
     try {
