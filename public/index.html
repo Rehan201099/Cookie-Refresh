@@ -3,14 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Roblox Pro Cookie Checker</title>
+    <title>Roblox Pro Cookie Checker - Economy</title>
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="bg-slate-900 text-slate-100 min-h-screen p-4 md:p-8">
     <div class="max-w-4xl mx-auto">
         <header class="text-center mb-8">
             <h1 class="text-3xl font-extrabold text-indigo-400 mb-2">Roblox Pro Cookie Checker</h1>
-            <p class="text-slate-400">Cek status akun, avatar, RAP, dan item animasi Roblox.</p>
+            <p class="text-slate-400">Cek akun lengkap dengan info Robux Masuk/Keluar & Riwayat Pengeluaran.</p>
         </header>
 
         <!-- Input Area -->
@@ -34,7 +34,7 @@
 
         <!-- Results Section -->
         <div class="bg-slate-800 rounded-xl shadow-lg border border-slate-700 overflow-hidden">
-            <div class="p-4 border-b border-slate-700 font-semibold text-slate-300">Hasil Pengecekan Detail</div>
+            <div class="p-4 border-b border-slate-700 font-semibold text-slate-300">Hasil Pengecekan Ekonomi Akun</div>
             <div id="resultsContainer" class="divide-y divide-slate-700 max-h-[600px] overflow-y-auto p-4 space-y-4">
                 <p class="text-slate-500 text-center py-4">Belum ada data yang dicek.</p>
             </div>
@@ -68,22 +68,13 @@
                 });
 
                 const data = await response.json();
-                
-                if (!response.ok) {
-                    throw new Error(data.error || 'Gagal tersambung ke server');
-                }
+                if (!response.ok) throw new Error(data.error || 'Gagal tersambung ke server');
 
                 allResults = data.results || [];
                 renderResults(allResults);
 
-                if (allResults.length > 0) {
-                    statusText.className = "text-sm text-emerald-400 font-semibold";
-                    statusText.innerText = `Selesai! Ditemukan ${allResults.length} akun valid.`;
-                } else {
-                    statusText.className = "text-sm text-rose-400 font-semibold";
-                    statusText.innerText = `Selesai. Cookie tidak valid / expired.`;
-                }
-
+                statusText.className = "text-sm text-emerald-400 font-semibold";
+                statusText.innerText = `Selesai! Ditemukan ${allResults.length} akun valid.`;
             } catch (err) {
                 statusText.className = "text-sm text-rose-400 font-semibold";
                 statusText.innerText = `Error: ${err.message}`;
@@ -103,19 +94,14 @@
             }
 
             container.innerHTML = data.map(acc => {
-                let itemsHtml = acc.valuableItems && acc.valuableItems.length > 0 ? acc.valuableItems.map(item => `
-                    <div class="flex items-center gap-2 bg-slate-800 p-1.5 rounded border border-slate-700 text-xs">
-                        <img src="https://thumbnails.roblox.com/v1/assets?assetIds=${item.assetId}&returnPolicy=PlaceHolder&size=50x50&format=Png" class="w-8 h-8 rounded bg-slate-900 object-cover" alt="Item">
-                        <div class="truncate">
-                            <div class="font-medium text-slate-200 truncate">${item.name}</div>
-                            <div class="text-emerald-400 font-semibold">RAP: ${item.rap}</div>
-                        </div>
+                let txHtml = acc.transactions && acc.transactions.length > 0 ? acc.transactions.map(tx => `
+                    <div class="flex justify-between items-center bg-slate-800 p-2 rounded text-xs border border-slate-700">
+                        <span class="text-slate-300 truncate max-w-[180px]">${tx.description}</span>
+                        <span class="${tx.amount > 0 ? 'text-emerald-400 font-semibold' : 'text-rose-400 font-semibold'}">
+                            ${tx.amount > 0 ? '+' + tx.amount : tx.amount} Robux
+                        </span>
                     </div>
-                `).join('') : '<span class="text-xs text-slate-500">Tidak ada item limited/RAP.</span>';
-
-                let animsHtml = acc.animations && acc.animations.length > 0 ? acc.animations.map(anim => `
-                    <span class="text-xs bg-indigo-500/10 border border-indigo-500/30 text-indigo-300 px-2 py-1 rounded">${anim}</span>
-                `).join('') : '<span class="text-xs text-slate-500">Tidak ada paket animasi khusus.</span>';
+                `).join('') : '<span class="text-xs text-slate-500">Tidak ada riwayat transaksi terbaru.</span>';
 
                 return `
                 <div class="bg-slate-900 p-4 rounded-lg border border-slate-700 space-y-4">
@@ -132,8 +118,9 @@
                                     ${acc.isPremium ? '<span class="text-xs bg-amber-500/20 text-amber-400 border border-amber-500/30 px-2 py-0.5 rounded font-semibold">Premium</span>' : ''}
                                 </div>
                                 <div class="text-sm text-slate-400 mt-1 flex flex-wrap gap-4">
-                                    <span>💰 Robux: <strong class="text-emerald-400">${acc.robux}</strong></span>
-                                    <span>💎 Total RAP: <strong class="text-amber-400">${acc.totalRap}</strong></span>
+                                    <span>💰 Saldo: <strong class="text-emerald-400">${acc.robux}</strong></span>
+                                    <span>📥 Masuk: <strong class="text-sky-400">+${acc.totalIncoming}</strong></span>
+                                    <span>📤 Keluar (Spend): <strong class="text-rose-400">-${acc.totalSpent}</strong></span>
                                     <span>📅 Dibuat: ${acc.createdDate}</span>
                                 </div>
                             </div>
@@ -143,15 +130,10 @@
                         </button>
                     </div>
 
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 pt-3 border-t border-slate-800">
-                        <div>
-                            <div class="text-xs font-semibold text-slate-400 mb-2">🎁 Item Berharga / Limiteds:</div>
-                            <div class="grid grid-cols-2 gap-2 max-h-32 overflow-y-auto">${itemsHtml}</div>
-                        </div>
-                        <div>
-                            <div class="text-xs font-semibold text-slate-400 mb-2">🏃 Paket Animasi (${acc.animations ? acc.animations.length : 0}):</div>
-                            <div class="flex flex-wrap gap-1.5 max-h-32 overflow-y-auto">${animsHtml}</div>
-                        </div>
+                    <!-- Riwayat Transaksi / Pembelian Game & Item -->
+                    <div class="pt-3 border-t border-slate-800">
+                        <div class="text-xs font-semibold text-slate-400 mb-2">📜 Riwayat Transaksi Robux Terakhir (In/Out/Spend):</div>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-2 max-h-36 overflow-y-auto">${txHtml}</div>
                     </div>
                 </div>
             `;
@@ -175,4 +157,4 @@
         }
     </script>
 </body>
-</html>
+</html>l>
