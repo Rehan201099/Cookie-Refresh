@@ -5,7 +5,7 @@ const path = require('path');
 const app = express();
 app.use(express.json());
 
-// Melayani file statis dari folder public
+// Mengarahkan folder public agar file HTML utama terbaca
 app.use(express.static(path.join(__dirname, 'public')));
 
 // Endpoint untuk cek cookie Roblox
@@ -18,30 +18,24 @@ app.post('/api/check', async (req, res) => {
 
         const cleanCookie = cookie.trim();
 
-        // Request ke Roblox API menggunakan cookie
         const userResponse = await axios.get('https://users.roblox.com/v1/users/authenticated', {
-            headers: {
-                'Cookie': `.ROBLOSECURITY=${cleanCookie}`
-            }
+            headers: { 'Cookie': `.ROBLOSECURITY=${cleanCookie}` }
         });
 
         const userId = userResponse.data.id;
         const username = userResponse.data.name;
         const displayName = userResponse.data.displayName;
 
-        // Ambil data Robux
         const economyResponse = await axios.get(`https://economy.roblox.com/v1/users/${userId}/currency`, {
             headers: { 'Cookie': `.ROBLOSECURITY=${cleanCookie}` }
         });
         const robux = economyResponse.data.robux || 0;
 
-        // Ambil info profil detail (umur akun, dll)
         const profileResponse = await axios.get(`https://users.roblox.com/v1/users/${userId}`, {
             headers: { 'Cookie': `.ROBLOSECURITY=${cleanCookie}` }
         });
         const createdDate = profileResponse.data.created;
 
-        // Cek status email & 2FA
         let emailStatus = "Tidak Diketahui";
         let has2FA = false;
         try {
