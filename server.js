@@ -5,7 +5,7 @@ const path = require('path');
 const app = express();
 app.use(express.json());
 
-// Mengarahkan folder public agar file HTML utama terbaca
+// Mengarahkan folder public agar halaman web utama terbaca dengan benar
 app.use(express.static(path.join(__dirname, 'public')));
 
 // Endpoint untuk cek cookie Roblox
@@ -18,6 +18,7 @@ app.post('/api/check', async (req, res) => {
 
         const cleanCookie = cookie.trim();
 
+        // 1. Ambil data autentikasi user
         const userResponse = await axios.get('https://users.roblox.com/v1/users/authenticated', {
             headers: { 'Cookie': `.ROBLOSECURITY=${cleanCookie}` }
         });
@@ -26,18 +27,20 @@ app.post('/api/check', async (req, res) => {
         const username = userResponse.data.name;
         const displayName = userResponse.data.displayName;
 
+        // 2. Ambil data Robux
         const economyResponse = await axios.get(`https://economy.roblox.com/v1/users/${userId}/currency`, {
             headers: { 'Cookie': `.ROBLOSECURITY=${cleanCookie}` }
         });
         const robux = economyResponse.data.robux || 0;
 
+        // 3. Ambil info profil (tanggal dibuat)
         const profileResponse = await axios.get(`https://users.roblox.com/v1/users/${userId}`, {
             headers: { 'Cookie': `.ROBLOSECURITY=${cleanCookie}` }
         });
         const createdDate = profileResponse.data.created;
 
+        // 4. Cek status email
         let emailStatus = "Tidak Diketahui";
-        let has2FA = false;
         try {
             const settingsResponse = await axios.get('https://settings.roblox.com/v1/email', {
                 headers: { 'Cookie': `.ROBLOSECURITY=${cleanCookie}` }
@@ -45,8 +48,10 @@ app.post('/api/check', async (req, res) => {
             emailStatus = settingsResponse.data.verified ? "Verified (Aman)" : "Unverified";
         } catch (e) {}
 
+        // 5. Cek status 2FA
+        let has2FA = false;
         try {
-            const tfaResponse = await axios.get('https://twostepverification.roblox.com/v1/users/' + userId + '/metadata', {
+            const tfaResponse = await axios.get(`https://twostepverification.roblox.com/v1/users/${userId}/metadata`, {
                 headers: { 'Cookie': `.ROBLOSECURITY=${cleanCookie}` }
             });
             has2FA = tfaResponse.data.isTwoStepVerificationEnabled || false;
